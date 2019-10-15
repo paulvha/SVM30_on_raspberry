@@ -38,10 +38,10 @@ To create a build with the SVM30 and SDS011 monitor type:
     -h      continued humidity compensation
     -m      perform a measurement test
 ###  program control settings:
-   -d       display ID-numbers and feature set only
-   -l #     number of measurements (0 = endless)
-   -w #     wait-time (seconds) between measurements
-   -v       include verbose / debug information
+    -d       display ID-numbers and feature set only
+    -l #     number of measurements (0 = endless)
+    -w #     wait-time (seconds) between measurements
+    -v       include verbose / debug information
 
 ### output formatting
     -D      do not display output in color
