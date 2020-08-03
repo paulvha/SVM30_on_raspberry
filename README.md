@@ -12,8 +12,10 @@ As part of a larger project I am looking at analyzing and understanding the air 
 I have done a number of projects on air-sensors. The SVM30 sensor is a new kid on the block
 that looks interesting. This is a working driver + user level program.
 
-A word of warning: the SVM30 needs a female plug of ZHR-4 from JST Sales America Inc.
-You might have one that fits (e.g. other sensor use this as well) but I have been able to find a source for that : AliExpress
+A word of warning: the SVM30 needs a female plug, which is different depending on the rpoduct version of your board
+
+SVM30-Y  Yeonho Electronics, 20037WR-04 <br>
+SVM30-J  Scondar SCT2001WR -S-4P compatible to JST part no. S4B-PH-SM4-TB <br>
 
 ## Prerequisites
 Install latest from BCM2835 from : http://www.airspayce.com/mikem/bcm2835/
@@ -70,3 +72,4 @@ This project is licensed under the GNU GENERAL PUBLIC LICENSE 3.0
 ## Acknowledgements
 Make sure to read the SVM30, SHTC1 and SGP30 datasheets from Sensirion.
 They provide good starting point for information and are added in the extras directory.<br>
+Philipp : Extra clarification on about female plug
