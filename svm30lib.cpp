@@ -41,6 +41,13 @@
  * Version 1.1 / October 2019
  * - added dewPoint and heatindex
  * - added Temperature selection (Fahrenheit / Celsius)
+ * 
+ * Version 1.2 / August 2020
+ * it seems that older product version(level 9) of the SGP30 / SVM30 fail to read raw data.
+ * added support to exclude reading the raw data.
+ *
+ * - added raw boolean (default true) to include(true) / exclude (false) raw data
+ * - added read-delay setting based on the kind of command request.
  *********************************************************************
  */
 
@@ -57,7 +64,6 @@ SVM30::SVM30(void) {
   _SVM30_Debug = false;
   _started = false;
   _SelectTemp = true;          // default to celsius
-  _wait = DEFAULT_WAIT;        // wait time after sending command
 }
 
 /**
@@ -96,6 +102,8 @@ bool SVM30::begin() {
     if (! I2C_init()) return(false);
 
     reset(SGP30);
+    
+    reset(SHTC1);
 
     // start SGP30
     return(StartSGP30());
@@ -248,17 +256,11 @@ bool SVM30::MeasureTest() {
 
     PrepSendBuffer(SGP30_ADDRESS, SGP30_Measure_Test);
 
-    // set for longer wait time
-    _wait = MEASURE_WAIT;
-
     // send Request and read from sensor
     if (RequestFromSVM(2) != ERR_OK) {
         if (_SVM30_Debug) printf("Error during measurement test\n");
         return(false);
     }
-
-    // set for default wait time
-    _wait = DEFAULT_WAIT;
 
     // check the return code
     if (_Receive_BUF[0] != (SGP30_TestOK >> 8 & 0xff) || _Receive_BUF[1] != (SGP30_TestOK & 0xff) ) {
@@ -578,13 +580,79 @@ bool SVM30::TriggerSGP30() {
 }
 
 /**
- * @brief : read all measurement values from the sensor and store in structure
- * @param v: pointer to structure to store
+ * @brief : get Inceptivebaseline  (impact TVOC only)
+ *
+ * See datasheet May 2020 SGP30
+ *
+ * !!! REQUIRES LEVEL 34 FEATURE SET !!!
+ * @param *baseline
+ *   Store the baseline
  *
  * @return :
  *   true on success else false
  */
-bool SVM30::GetValues(struct svm_values *v) {
+bool SVM30::GetInceptiveBaseLine_TVOC(uint16_t *baseline) {
+    PrepSendBuffer(SGP30_ADDRESS, SGP30_Get_tvoc_inceptive_baseline);
+
+    // send Request and read from sensor
+    if (RequestFromSVM(2) != ERR_OK) {
+        if (_SVM30_Debug) printf("Error during reading Inceptivebaseline\n");
+        return(false);
+    }
+
+    // copy baseline
+    *baseline = byte_to_uint16(0);
+
+    return(true);
+}
+
+/**
+ * @brief : set Inceptivebaseline  (impact TVOC only)
+ *
+ * See datasheet May 2020 SGP30
+ *
+ * !!! REQUIRES LEVEL 34 FEATURE SET !!!
+ * @param baseline
+ *      Store the baseline to set (previous obtained with GetInceptiveBaseLine_TVOC
+ *
+ * @return :
+ *   true on success else false
+ */
+bool SVM30::SetInceptiveBaseLine_TVOC(uint16_t baseline) {
+    char    data[2];
+
+    if (baseline == 0x0) {
+         if (_SVM30_Debug) printf("Error during setting Inceptivebaseline. Baseline can NOT be zero\n");
+         return(false);
+    }
+
+    data[0] = (baseline >> 8) & 0xff;// MSB
+    data[1] = baseline & 0xff;       // LSB
+
+    PrepSendBuffer(SGP30_ADDRESS, SGP30_Set_tvoc_inceptive_baseline, data, 2);
+
+    // send Request to sensor
+    if (SendToSVM() != ERR_OK) {
+        if (_SVM30_Debug) printf("Error during setting Inceptivebaseline\n");
+        return(false);
+    }
+
+    return(true);
+}
+
+/**
+ * @brief : read all measurement values from the sensor and store in structure
+ * @param v: pointer to structure to store
+ * 
+ * @param raw: if true it will try to read the raw values from the SGP30 (update 1.2)
+ *
+ * It seems that older version of the SGP30 do not support reading raw, hence the "raw" -option
+ * has been added as an option to exclude. By default it will read to stay backward compatible
+ *
+ * @return :
+ *   true on success else false
+ */
+bool SVM30::GetValues(struct svm_values *v, bool raw) {
     memset(v,0x0,sizeof(struct svm_values));
 
     /** data from SGP30  */
@@ -593,17 +661,23 @@ bool SVM30::GetValues(struct svm_values *v) {
     v->CO2eq = byte_to_uint16(0);
     v->TVOC  = byte_to_uint16(2);
 
-    // get raw H2 signal and Ethanol signal
-    PrepSendBuffer(SGP30_ADDRESS, SGP30_Measure_Raw_Signals);
-
-    // send Request and read from sensor
-    if (RequestFromSVM(4) != ERR_OK) {
-        if (_SVM30_Debug) printf("Error during reading Raw signals\n");
-        return(false);
+    if (raw) {
+        // get raw H2 signal and Ethanol signal
+        PrepSendBuffer(SGP30_ADDRESS, SGP30_Measure_Raw_Signals);
+    
+        // send Request and read from sensor
+        if (RequestFromSVM(4) != ERR_OK) {
+            if (_SVM30_Debug) printf("Error during reading Raw signals\n");
+            return(false);
+        }
+    
+        v->H2_signal = byte_to_uint16(0);
+        v->Ethanol_signal  = byte_to_uint16(2);
     }
-
-    v->H2_signal = byte_to_uint16(0);
-    v->Ethanol_signal  = byte_to_uint16(2);
+    else {
+        v->H2_signal = 0;
+        v->Ethanol_signal  = 0;
+    }
 
     /** data from SHTC1 */
     PrepSendBuffer(SHTC1_ADDRESS, SHTC1_Read_Temp_First);
@@ -679,6 +753,22 @@ void SVM30::PrepSendBuffer(uint8_t device, uint16_t cmd, char *param, uint8_t le
                 c = 0;
             }
         }
+    }
+    
+    // 1.2 : the delay is now depending on the Measurement Commands typical
+    // timing as defined in the datasheet table 13
+    // MUCH longer times needs on Rasperry (table timing * 2))
+
+    switch(cmd) {
+        case SGP30_Measure_Test:
+            _wait = 500000;     // 500mS
+            break;
+        case SGP30_Measure_Raw_Signals:
+            _wait = 250000;      // 250mS
+            break;
+        default:
+            _wait = 50000;      // default 50mS
+            break;
     }
 
     _Send_BUF_Length = i;
@@ -923,6 +1013,7 @@ bool SVM30::I2C_init()
    
     return(true);
 }
+
 /**
  * @brief : read from device
  * 
@@ -1000,6 +1091,7 @@ void SVM30::I2C_close()
     // release BCM2835 library
     bcm2835_close();
 }
+
 /********************************************************************
  * FOLLOWING CODE IS TAKEN FROM
  *

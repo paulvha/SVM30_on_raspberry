@@ -35,12 +35,19 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  *
  **********************************************************************
- * Version 1.0   / September 2019
+ * Version 1.0 / September 2019
  * - Initial version by paulvha
  *
  * Version 1.1 / October 2019
  * - added dewPoint and heatindex
  * - added Temperature selection (Fahrenheit / Celsius)
+ * 
+ * Version 1.2 / August 2020
+ * it seems that older product version(level 9) of the SGP30 / SVM30 fail to read raw data.
+ * added support to exclude reading the raw data.
+ *
+ * - added raw boolean (default true) to include(true) / exclude (false) raw data
+ * - added read-delay setting based on the kind of command request.
  *********************************************************************
  */
 #ifndef SVM30_H
@@ -54,7 +61,7 @@
 # include <stdlib.h>        // needed for abs())
 
 // set driver version
-#define VERSION "1.1 / October 2019";
+#define VERSION "1.2 / August 2020";
 
 /* structure to return measurement values */
 struct svm_values
@@ -107,6 +114,9 @@ struct svm_values
 #define SGP30_TestOK                0xD400
 #define SGP30_Get_Feature_Set       0x202F
 #define SGP30_Measure_Raw_Signals   0x2050
+#define SGP30_Get_tvoc_inceptive_baseline 0x20B3        // Datasheet SGP30 May 2020 - requires level 34 - added 1.2
+#define SGP30_Set_tvoc_inceptive_baseline 0x2077        // Datasheet SGP30 May 2020 - requires level 34 - added 1.2
+
 #define SGP30_Read_ID               0x3682
 
 /* SHTC1 information  */
@@ -125,12 +135,10 @@ struct svm_values
 #define SHTC1_Read_Humidity_First       0x58E0  // polling no clock stretching (info only not used)
 #define SHTC1_CS_Read_Temp_First        0x7CA2  // clock stretching (info only not used
 #define SHTC1_CS_Read_Humidity_First    0x5C24  // clock stretching (info only not used)
+
 #define SHTC1_Read_ID                   0xEFC8
 #define SHTC1_Reset                     0x805D
 
-// wait times (uS) after sending command to sensor
-#define DEFAULT_WAIT 50000             // can be adjusted if you get timeouts
-#define MEASURE_WAIT 500000            // although 220mS should be enough, it seems to need more time
 /***************************************************************/
 
 class SVM30
@@ -270,6 +278,24 @@ class SVM30
      *   true on success else false
      */
     bool SetBaseLines(uint32_t baseline);
+    
+    /**
+     * @brief : get Inceptivebaseline  (impact TVOC only)
+     *
+     * See datasheet May 2020 SGP30
+     *
+     * !!! REQUIRES LEVEL 34 FEATURE SET !!!
+     *
+     * At this moment (August 2020) there is not enough information
+     * to include this into overall SVM30 program. As such it is enabled
+     * as a placeholder, in case more informationn becomes available in
+     * the future.
+     * 
+     * @return :
+     *   true on success else false
+     */
+    bool GetInceptiveBaseLine_TVOC(uint16_t *baseline);
+    bool SetInceptiveBaseLine_TVOC(uint16_t baseline);
 
     /**
      * @brief set humidity on SGP30
@@ -296,11 +322,15 @@ class SVM30
     /**
      * @brief : read all measurement values from the sensor and store in structure
      * @param v: pointer to structure to store
+     * @param raw: if true it will try to read the raw values from the SGP30 (update 1.2)
+     *
+     * It seems that older version of the SGP30 do not support reading raw, hence the "raw" -option
+     * has been added as an option to exclude. By default it will read to stay backward compatible
      *
      * @return :
      *   true on success else false
      */
-    bool GetValues(struct svm_values *v);
+    bool GetValues(struct svm_values *v, bool raw = true);
 
     /**
      * close library, reset pins and release memory

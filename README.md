@@ -63,6 +63,12 @@ To create a build with the SVM30 and SDS011 monitor type:
  * added dewPoint and heatindex
  * added temperature selection (Fahrenheit / Celsius)
 
+### version 1.2 / August 2020
+ * it seems that older product version(level 9) of the SGP30 / SVM30 fail to read raw data.
+ * added raw boolean (default true) to include(true) / exclude (false) raw data in case of older product version.
+ * added read-delay setting based on the kind of command request to improve stability
+ * added functions for inceptive baseline of the SGP30 (requires level 34 at least). Documented in SGP30 datasheet May 2020.
+
 ## Author
  * Paul van Haastrecht (paulvha@hotmail.com)
 
@@ -73,3 +79,4 @@ This project is licensed under the GNU GENERAL PUBLIC LICENSE 3.0
 Make sure to read the SVM30, SHTC1 and SGP30 datasheets from Sensirion.
 They provide good starting point for information and are added in the extras directory.<br>
 Philipp : Extra clarification on about female plug
+<br> Amy Kim : Help diagnosing older product version raw-reading issue.

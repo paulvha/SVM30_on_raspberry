@@ -541,7 +541,7 @@ void main_loop(struct svm_par *svm)
             if (!set_baseline(svm)) return;
         }
         
-        if (MySensor.GetValues(&svm->v)) {
+        if (MySensor.GetValues(&svm->v,svm->raw)) {
             do_output(svm);
         }
         else  {
@@ -698,7 +698,7 @@ void parse_cmdline(int opt, char *option, struct svm_par *svm)
         svm->DispBaseline = ! svm->DispBaseline;
         break;
         
-     case 'R':   // toggle H2 and Ethanol signals
+     case 'R':   // toggle reading and display H2 and Ethanol signals
         svm->raw = ! svm->raw;
         break;       
                 
